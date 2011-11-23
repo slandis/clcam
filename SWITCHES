@@ -1,0 +1,26 @@
+-F --filters            display filter help
+-H --help		display this help screen
+-I --info <hw|values>	display hardware info or default values
+-V --version		display version and exit
+-b --brightness <num>	adjusts the image brightness
+-d --despeckle          despeckle filter
+-e --noise <num>	adds <num> amount of noise to the image
+-f --flip		flips the image vertically
+-g --gamma      <num>   adjusts the image gamma to <num>
+-h --highpass           sharpness image filter
+-i --type <type>        type of image to dump(JPEG,PNG,PPM)
+-l --lowpass            smoothing image filter
+-m --mirror		mirrors the image horizontally
+-n --negative           transforms the image to a negative of the original
+-o --output <file name> filename to output image
+-p --laplace		performs laplace edge detection on the image
+-q --quality <num>      sets quality to <num>
+-r --rotate <deg>	rotates the image by <deg> degrees
+-s --sobel              performs sobel edge detection on the image
+-t --text <text>        adds <text> as a timestamp
+-v --video <video dev>  grab frames from <video dev>
+-x --width <num>        sets the image width
+-y --height <num>       sets the image height
+-z --greyscale          saves image as greyscale
+   --foreground <color> sets stamp foreground color (#000000 style)
+   --background <color> sets stamp background color (#000000 style)

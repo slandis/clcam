@@ -1,0 +1,34 @@
+clcam-0.7.0 [11/22/2011]: Rewrite for Video4Linux2
+  - Moved capture engine to V4L2 API
+  - Not just generic Quickcam capture anylonger, anything
+    supported by uvc/V4L2 can be used.
+  - Filters and save types have not changed.
+  - There are bugs, and I haven't gotten around to fixing
+    them yet. I might.
+    
+clcam-0.6.0pl1 [3/5/2004]: Release, mostly working
+  - General code release, placed on sourceforge
+
+clcam-alpha [1/3/2004]: Code cleanup
+  - Changed the switches around. Please read SWITCHES
+  - Added text stamping, using strftime formatting. See
+    STAMP for more information on the formats.
+  - Added a preliminary filter_rotate. It doesn't quite
+    work yet, but it'll get there soon.
+    
+clcam-0.5.1 [8/31/2003]: Feature update
+  - Moved -f/--filters to -F/--filters to accomodate -f/--flip
+  - Added a vertical flipping switch, -f/--flip
+
+clcam-0.5 [8/22/2003]: Minor update
+  - Image output to stdout now enabled (code was there, but not working)
+  - Fixed the sobel and mirror filters which were semi-broken (unexpected results)
+  - Fixed configure script generating weird Makefile
+
+clcam-0.4 [8/19/2003]: Minor update
+  - PNG and JPEG support are now optional. Check the Makefile.
+
+clcam-0.3 [8/17/2003]: Initial release.
+  - Filters working for the most part
+  - Filters optional, ~12Kb savings if left out
+  - JPEG, PNG and PPM support

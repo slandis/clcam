@@ -1,0 +1,8 @@
+- Polish up filter code
+- Clean up V4L2 code
+- Fix image offset issue
+
+OLD (clcam-0.6.0pl1 and earlier)
+- Finish filter_rotate
+- Find/write simple FTP library
+- filter plugin/API set

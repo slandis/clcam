@@ -1,0 +1,70 @@
+clcam - console image grabber
+Copyright 2003-2011 Shaun Landis and Romesh Kumbhani
+Some (most? :) filter code Copyright 2003-2011 Romesh Kumbhani
+
+clcam is just a simple command line webcam application. It should work
+with any standard video4linux2 (uvc) device. Below is a run-down of features/options.
+
+READ THIS READ THIS READ THIS
+-----------------------------
+The current code has issues. I ported to V4L2 and released for my own personal use.
+It comes with no warranty or guarantee to work for you or your application.
+
+STANDARD OPTIONS
+----------------
+-F/--filters		Displays usage guidelines for the built-in filters
+-H/--help		Display usage guidelines
+-I/--info [hw|values]	Display clcams default settings or hardware information
+-V/--version		Displays clcams current version information
+-d/--device [device]	Sets the video device to use for capture
+-i/--type [type]	Sets the image out put type: JPEG, PNG or PPM
+-o/--output [file]	Sets the output filename
+-q/--quality [0-100]	Sets the image quality (JPEG only)
+-t/--text ["text"]	Sets the stamp to overlay. Use quotes for including spaces.
+-x/--width		Sets the image capture width
+-y/--height		Sets the image capture height
+-z/--greyscale		Sets the capture to greyscale mode (8 bit)
+   --foreground <#>	Sets the foreground for the overlay stamp (ie. #ffffff)
+   --background <#>	Sets the background for the overlay stamp (ie. #00ff00)
+
+clcam defaults are as follows:
+	  Capture Width: 640
+	 Capture Height: 480
+	Capture Palette: RGB24 (24 bit)
+	 Capture Output: JPEG (PPM if JPEG is support is missing)
+	      - Quality: 85
+
+FILTER OPTIONS
+--------------
+-b/--brightness [value]	Sets the image brightness adjustment (0-255)
+-e/--noise      [value]	Sets the image noise adjustment (0-255) (BROKEN)
+-g/--gamma      [value]	Sets the image gamma adjustment (0-255) (BROKEN)
+-h/--highpass		Performs a highpass transform on image
+-l/--lowpass		Performs a lowpass transform on image
+-m/--mirror		Performs a mirror transform on image
+-n/--negative		Performs a negative transform on image
+-p/--laplace		Performs laplace edge detection on image (BROKEN)
+-r/--rotate	[value]	Performs a rotation on the image of [value] degrees (0-360)
+-s/--sobel		Performs sobel edge detection on image
+
+The filters will be applied in the order in which they are specified on
+the command line, so be careful when specifying them.
+
+APPLICATION NOTES
+-----------------
+Some of the code within this application is derived from examples or other
+sources freely available on the internet. The two main sources for clcam
+were gqcam, videodog and the capture example from V4L2 source. These are both
+licensed under the GNU GPL, and by extention, so is clcam. See the file COPYING
+for further information on the GPL and its terms.
+
+If there are some fixes or comments and suggestions you'd like to pass my
+way, feel free to do so. I'd like to keep clcam as small and as utilitarian
+as possible, but if it's something that catches me, I'll probably fix/add
+it.
+
+CONTACT INFO
+------------
+email: slandis@plague.org
+
+Latest version is always available at http://www.github.com/slandis/clcam
