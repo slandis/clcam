@@ -26,6 +26,7 @@ void filter_predator(Capture *);
 void filter_despeckle(Capture *);
 void filter_rotate(Capture *);
 void filter_text(Capture *);
+void filter_greyscale(Capture *);
 
 void walk_filters(Capture *);
 

@@ -21,6 +21,8 @@
 #include <linux/types.h>
 #include <signal.h>
 #include <png.h>
+#include <linux/videodev2.h>
+
 #include "clcam.h"
 #include "filters.h"
 
@@ -133,8 +135,9 @@ void filter_gamma(Capture *capture) {
 }
 
 /*
- * Basic sobel filter
+ * Basic sobel filter - broken?
  */
+/*
 void filter_sobel(Capture *capture) {
   int i;
   int grad;
@@ -145,64 +148,44 @@ void filter_sobel(Capture *capture) {
   unsigned char *imageOut = NULL, *imageInG = NULL, *imageOutG = NULL;
   imageOut = malloc(capture->size * sizeof(unsigned char));
 
-#ifdef  DEBUG
-  fprintf(stderr, "Performing filter_sobel()...");
-#endif
-
-  if (capture->greyscale){
-    width = capture->width;
-  } else {
-    width = capture->width*3;
-    imageInG  = malloc((capture->size / 3) * sizeof(unsigned char));
-    imageOutG = malloc((capture->size / 3) * sizeof(unsigned char));
-
-    for (i = 0; i < capture->size; i = i + 3) {
-       imageInG[i/3] = (capture->image[i]*0.3 + capture->image[i+1]*0.59 + capture->image[i+2]*0.11);
-    }
-  }
-
   if (!imageOut) {
     fprintf(stderr,"imageOut alloc err\n");
     return;
   }
 
-  if (capture->greyscale){
-    for (i = width; i < (capture->height-1) * width; i++) {
-      deltaX = 2 * capture->image[i+1] + capture->image[i-width+1] + capture->image[i+width+1] - 2*capture->image[i-1] - capture->image[i-width-1] - capture->image[i+width-1];
-      deltaY = capture->image[i-width-1] + 2*capture->image[i-width] + capture->image[i-width+1] - capture->image[i+width-1] - 2*capture->image[i+width] - capture->image[i+width+1];
-      grad = (abs(deltaX) + abs(deltaY)) / 3;
+#ifdef  DEBUG
+  fprintf(stderr, "Performing filter_sobel()...");
+#endif
 
-      if (grad > 255)
-        grad = 255;
+  width = capture->width*3;
+  imageInG  = malloc((capture->size / 3) * sizeof(unsigned char));
+  imageOutG = malloc((capture->size / 3) * sizeof(unsigned char));
 
-      imageOut[i] = 255-(unsigned char) grad;
-    }
-  } else {
-    for (i = width/3; i < (capture->height-1) * width/3; i++) {
-      deltaX = 2 * imageInG[i+1] + imageInG[i-width+1] + imageInG[i+width+1] - 2*imageInG[i-1] - imageInG[i-width-1] - imageInG[i+width-1];
-      deltaY = imageInG[i-width-1] + 2*imageInG[i-width] + imageInG[i-width+1] - imageInG[i+width-1] - 2*imageInG[i+width] - imageInG[i+width+1];
-      grad = (abs(deltaX) + abs(deltaY)) / 3;
-
-      if (grad > 255)
-        grad = 255;
-
-      imageOutG[i] = 255-(unsigned char) grad;
-    }
-    for (i = 0; i < capture->size; i++) {
-      // imageOut[i] = (imageIn[i] + imageOutG[i/3])/2;  <-- original
-
-      temp = (int)(1.0*(float)capture->image[i] + 0.5*((float)imageOutG[i/3] - 128));
-      if (temp > 255) temp = 255;
-      if (temp < 0) temp = 0;
-      imageOut[i] = (unsigned char)temp;
-    }
-
+  for (i = 0; i < capture->size; i = i + 3) {
+    imageInG[i/3] = (capture->image[i]*0.3 + capture->image[i+1]*0.59 + capture->image[i+2]*0.11);
   }
 
-  if (!(capture->greyscale)){
-    free(imageInG);
-    free(imageOutG);
+  for (i = width/3; i < (capture->height-1) * width/3; i++) {
+    deltaX = 2 * imageInG[i+1] + imageInG[i-width+1] + imageInG[i+width+1] - 2*imageInG[i-1] - imageInG[i-width-1] - imageInG[i+width-1];
+    deltaY = imageInG[i-width-1] + 2*imageInG[i-width] + imageInG[i-width+1] - imageInG[i+width-1] - 2*imageInG[i+width] - imageInG[i+width+1];
+    grad = (abs(deltaX) + abs(deltaY)) / 3;
+
+    if (grad > 255)
+      grad = 255;
+
+    imageOutG[i] = 255-(unsigned char) grad;
   }
+  for (i = 0; i < capture->size; i++) {
+    // imageOut[i] = (imageIn[i] + imageOutG[i/3])/2;  <-- original
+
+    temp = (int)(1.0*(float)capture->image[i] + 0.5*((float)imageOutG[i/3] - 128));
+    if (temp > 255) temp = 255;
+    if (temp < 0) temp = 0;
+    imageOut[i] = (unsigned char)temp;
+  }
+
+  free(imageInG);
+  free(imageOutG);
 
   memcpy(capture->image, imageOut, capture->size);
   free(imageOut);
@@ -211,8 +194,9 @@ void filter_sobel(Capture *capture) {
   fprintf(stderr, "done.\n");
 #endif
 }
+/**/
 
-/*
+/**/
 void filter_sobel(Capture *capture) {
   int i;
   int grad;
@@ -254,7 +238,7 @@ void filter_sobel(Capture *capture) {
   fprintf(stderr, "done.\n");
 #endif
 }
-*/
+/**/
 
 /*
  * Laplace filter
@@ -263,17 +247,16 @@ void filter_laplace(Capture *capture) {
   int i;
   int delta;
 
-  unsigned char *imageOut = NULL;
-  imageOut = malloc(capture->size * sizeof(unsigned char));
-
-#ifdef	DEBUG
-  fprintf(stderr, "Performing filter_laplace()...");
-#endif
+  unsigned char *imageOut = malloc(capture->size);
 
   if (!imageOut) {
     fprintf(stderr,"imageOut alloc err\n");
     return;
   }
+
+#ifdef	DEBUG
+  fprintf(stderr, "Performing filter_laplace()...");
+#endif
 
   for (i = capture->width; i < (capture->height-1) * capture->width; i++) {
     delta  = abs(4 * capture->image[i] - capture->image[i-1] - capture->image[i+1] - capture->image[i-capture->width] - capture->image[i+capture->width]);
@@ -300,18 +283,16 @@ void filter_noise(Capture *capture) {
   int width = capture->width;
   int height = capture->height;
   int numberOfPixels = (int)(capture->size * (capture->noise/255));
-  unsigned char *imageOut = NULL;
-
-  imageOut = malloc(capture->size * sizeof(unsigned char));
-
-#ifdef	DEBUG
-  fprintf(stderr, "Performing filter_noise()...");
-#endif
+  unsigned char *imageOut = malloc(capture->size);
 
   if (!imageOut) {
     fprintf(stderr,"imageOut alloc err\n");
     return;
   }
+
+#ifdef	DEBUG
+  fprintf(stderr, "Performing filter_noise()...");
+#endif
 
   memcpy(imageOut, capture->image, capture->size);
 
@@ -333,9 +314,7 @@ void filter_noise(Capture *capture) {
  */
 void filter_negative(Capture *capture) {
   int i;
-  unsigned char *imageOut = NULL;
-
-  imageOut = malloc(capture->size * sizeof(unsigned char));
+  unsigned char *imageOut = malloc(capture->size);
 
 #ifdef	DEBUG
   fprintf(stderr, "Performing filter_negative()...");
@@ -349,7 +328,7 @@ void filter_negative(Capture *capture) {
   memcpy(imageOut, capture->image, capture->size);
 
   for (i = 0; i < capture->size; i++) {
-    imageOut[i]= 255-capture->image[i];
+    imageOut[i] = 255 - capture->image[i];
   }
 
   memcpy(capture->image, imageOut, capture->size);
@@ -364,9 +343,7 @@ void filter_flip(Capture *capture) {
   int r, c;
   int height, width;
   char tmp;
-  unsigned char *imageOut = NULL;
-
-  imageOut = malloc(capture->size * sizeof(unsigned char));
+  unsigned char *imageOut = malloc(capture->size);
 
 #ifdef  DEBUG
   fprintf(stderr, "Performing filter_flip()...");
@@ -376,17 +353,13 @@ void filter_flip(Capture *capture) {
     return;
   }
   
-  if (capture->greyscale)
-    width = capture->width;
-  else
-    width = capture->width * 3;
-
+  width = capture->width * 3;
   height = capture->height;
 
-  for (r = 0; r < height/2; r++)
+  for (r = 0; r < height / 2; r++)
     for (c = 0; c < width; c++) {
-      imageOut[c+width*r] = capture->image[width*(height - r - 1) + c];
-      imageOut[width*(height - r - 1) + c] = capture->image[c+width*r];
+      imageOut[c + width * r] = capture->image[width * (height - r - 1) + c];
+      imageOut[width * (height - r - 1) + c] = capture->image[c + width * r];
     }
 
   memcpy(capture->image, imageOut, capture->size);
@@ -400,36 +373,30 @@ void filter_flip(Capture *capture) {
 void filter_mirror(Capture *capture) {
   int r, c;
   int height, width;
-  unsigned char *imageOut = NULL;
+  unsigned char *imageOut = malloc(capture->size);
   
-  imageOut = malloc(capture->size * sizeof(unsigned char));
-
-#ifdef	DEBUG
-  fprintf(stderr, "Performing filter_mirror()...");
-#endif
-
   if (!imageOut) {
     fprintf(stderr,"imageOut alloc err\n");
     return;
   }
 
-  if (capture->greyscale)
-    width = capture->width;
-  else
-    width = capture->width * 3;
+#ifdef	DEBUG
+  fprintf(stderr, "Performing filter_mirror()...");
+#endif
 
+  width = capture->width * 3;
   height = capture->height;
 
   for (r = 0; r < capture->size; r += width)
-    for (c = 0; c < width/2; c++){
+    for (c = 0; c < width / 3; c++){
       if (capture->greyscale) {
-        imageOut[c*2 + r + 0] = capture->image[(width - c*2 + 0) + r];
-        imageOut[c*2 + r + 1] = capture->image[(width - c*2 + 1) + r];
-        imageOut[c*2 + r + 2] = capture->image[(width - c*2 + 2) + r];
+        imageOut[c*2 + r + 0] = capture->image[(width - c*2 - 0) + r];
+        imageOut[c*2 + r + 1] = capture->image[(width - c*2 - 1) + r];
+        imageOut[c*2 + r + 2] = capture->image[(width - c*2 - 2) + r];
       } else {
-        imageOut[c*3 + r + 0] = capture->image[(width - c*3 + 0) + r];
-        imageOut[c*3 + r + 1] = capture->image[(width - c*3 + 1) + r];
-        imageOut[c*3 + r + 2] = capture->image[(width - c*3 + 2) + r];
+        imageOut[c*3 + r + 0] = capture->image[(width - c*3 - 0) + r];
+        imageOut[c*3 + r + 1] = capture->image[(width - c*3 - 1) + r];
+        imageOut[c*3 + r + 2] = capture->image[(width - c*3 - 2) + r];
       }
     }
 
@@ -440,6 +407,9 @@ void filter_mirror(Capture *capture) {
       imageOut[width*(height - r - 1) + c] = imageIn[c+width*r];
     }
 */
+#ifdef  DEBUG
+  fprintf(stderr, "Copying image to buffer\n");
+#endif
   memcpy(capture->image, imageOut, capture->size);
   free(imageOut);
   
@@ -463,10 +433,7 @@ void filter_lowpass(Capture *capture) {
     return;
   }
 
-  if (capture->greyscale)
-    width = capture->width;
-  else
-    width = capture->width*3;
+  width = capture->width*3;
 
 /*
   for (r = 0; r < capture->size; r += width)
@@ -480,8 +447,7 @@ void filter_lowpass(Capture *capture) {
         imageOut[c+r] = capture->image[c+r];
       else
         imageOut[c + r] = (capture->image[(r-3) + (c-3)] + capture->image[(r-3) + (c+0)] + capture->image[(r-3) + (c+3)] +
-        	capture->image[(r+0) + (c-3)] + capture->image[(r+0) + (c+0)] + capture->image[(r+0) + (c+3)] + capture->image[(r+3) +
-        	(c-3)] + capture->image[(r+3) + (c+0)] + capture->image[(r+3) + (c+3)]) / 9;
+        	capture->image[(r+0) + (c-3)] + capture->image[(r+0) + (c+0)] + capture->image[(r+0) + (c+3)] + capture->image[(r+3) + (c-3)] + capture->image[(r+3) + (c+0)] + capture->image[(r+3) + (c+3)]) / 9;
   }
   
   memcpy(capture->image, imageOut, capture->size);
@@ -495,8 +461,7 @@ void filter_lowpass(Capture *capture) {
 void filter_highpass(Capture *capture) {
   int r, c;
   int width = capture->width;
-  unsigned char *imageOut = NULL;
-  imageOut = malloc(capture->size * sizeof(unsigned char));
+  unsigned char *imageOut = malloc(capture->size);
 
 #ifdef	DEBUG
   fprintf(stderr, "Performing filter_highpass()...");
@@ -522,12 +487,11 @@ void filter_highpass(Capture *capture) {
 }
 
 /*
- * Removed for the time being.
+ * Fake the "infrared" look from the Predator movie
  */
- 
-/*
 void filter_predator(Capture *capture) {
-  unsigned char *imageOut = malloc(capture->size * sizeof(unsigned char));
+  unsigned char *imageOut = malloc(capture->size);
+  int x;
 
 #ifdef	DEBUG
   fprintf(stderr, "Performing filter_predator()...");
@@ -540,27 +504,27 @@ void filter_predator(Capture *capture) {
   
   memcpy(imageOut, capture->image, capture->size);
 
-  while ((unsigned int)imageOut < (unsigned int)capture->image + (unsigned int)capture->size) {
-    if (*imageOut > *(imageOut + 1)) {
-      if (*imageOut > *(imageOut + 2))
-        *(imageOut + 1) = *(imageOut + 2) = 0;
+  while (x < capture->size) {
+    if (imageOut[x] > imageOut[x + 1]) {
+      if (imageOut[x] > imageOut[x + 2])
+        imageOut[x + 1] = imageOut[x + 2] = 0;
 
-      *imageOut=255;
-    } else if (*(imageOut + 1) > *(imageOut + 2)) {
-      if (*(imageOut + 1) > *imageOut)
-        *imageOut = *(imageOut + 2) = 0;
+      imageOut[x] = 255;
+    } else if (imageOut[x + 1] > imageOut[x + 2]) {
+      if (imageOut[x + 1] > imageOut[x])
+        imageOut[x] = imageOut[x + 2] = 0;
 
-      *(imageOut + 1) = 255;
-    } else if (*(imageOut + 2) > *imageOut) {
-      if (*(imageOut + 2) > *(imageOut + 1))
-        *(imageOut + 1) = *imageOut = 0;
+      imageOut[x + 1] = 255;
+    } else if (imageOut[x + 2] > imageOut[x]) {
+      if (imageOut[x + 2] > imageOut[x + 1])
+        imageOut[x + 1] = imageOut[x] = 0;
 
-      *(imageOut + 2) = 255;
+      imageOut[x + 2] = 255;
     } else {
-      *(imageOut) = *(imageOut + 1) = *(imageOut + 2) = 255;
+      imageOut[x] = imageOut[x + 1] = imageOut[x + 2] = 0;
     }
 
-    imageOut += capture->depth;
+    x += 3;
   }
     
   memcpy(capture->image, imageOut, capture->size);
@@ -570,7 +534,6 @@ void filter_predator(Capture *capture) {
   fprintf(stderr, "done.\n");
 #endif
 }
-*/
 
 /*
  * the light-check threshold.  Higher numbers remove more lights but blur the
@@ -596,7 +559,7 @@ void filter_predator(Capture *capture) {
  */
 void filter_despeckle(Capture *capture) {
   long i;
-  unsigned char *imageOut = malloc(capture->width * capture->height * capture->depth);
+  unsigned char *imageOut = malloc(capture->size);
 
 #ifdef	DEBUG
   fprintf(stderr, "Performing filter_despeckle()...");
@@ -607,7 +570,7 @@ void filter_despeckle(Capture *capture) {
     return;
   }
 
-  for (i = 0; i < capture->width * capture->height; i++) {
+  for (i = 0; i < capture->size; i++) {
     if (i % capture->width == 0 || i % capture->width == capture->width - 1)
       memcpy(&imageOut[i*3], &capture->image[i*3], 3);
     else {
@@ -651,52 +614,84 @@ void filter_rotate(Capture *capture) {
   rp_x = capture->width/2;
   rp_y = capture->height/2;
   
-  theta = capture->rotate_angle*PI/180.0; // Convert theta into radians
+  theta = capture->rotate*PI/180.0; // Convert theta into radians
 
   im_r     = sqrt((capture->height * capture->height) + (capture->width * capture->width));
   im_theta = atan2(capture->height, capture->width) + theta;
   newheight = ceil(im_r * sin (im_theta));
   newwidth  = ceil(im_r * cos (im_theta));
   
-  imageOut = calloc(newheight * newwidth * capture->depth, sizeof(unsigned char *));
+  imageOut = malloc(newheight * (newwidth * 3));
+  memset(&imageOut, 0, capture->size);
   
   if (!imageOut) {
     fprintf(stderr,"imageOut alloc err\n");
     return;
   }
   
-  for (x=0;x<capture->width;x++){
-    for (y=0;y<(capture->height);y++){
-      relx = x-rp_x;
-      rely = y-rp_y;
-      xyrad = sqrt((relx*relx) + (rely*rely));
+  for (x = 0; x < capture->width; x++){
+    for (y = 0; y < capture->height; y++){
+      relx = x - rp_x;
+      rely = y - rp_y;
+      xyrad = sqrt((relx * relx) + (rely * rely));
       
-      if (relx==0) {
-        if (rely>0) {
-          xyor = PI/2;
+      if (relx == 0) {
+        if (rely > 0) {
+          xyor = PI / 2;
         } else {
-          xyor = 3*PI/2;
+          xyor = 3 * PI / 2;
         }
       } else {
-        xyor = atan2(rely,relx);
+        xyor = atan2(rely, relx);
       }
       
-      xrot = xyrad * cos(xyor+theta) + rp_x;
-      yrot = -xyrad * sin(xyor+theta) + rp_y;
+      xrot = xyrad * cos(xyor + theta) + rp_x;
+      yrot = -xyrad * sin(xyor + theta) + rp_y;
       
-      if ((((int)xrot*capture->width + (int)yrot + 0)>0)&&(((int)xrot*capture->width + (int)yrot + 2)<(newheight * newwidth * capture->depth))){
-        imageOut[(int)xrot*capture->width + (int)yrot + 0] = capture->image[x*capture->depth + 0];
-        imageOut[(int)xrot*capture->width + (int)yrot + 1] = capture->image[x*capture->depth + 1];
-        imageOut[(int)xrot*capture->width + (int)yrot + 2] = capture->image[x*capture->depth + 2];
+      if ((((int)xrot * capture->width + (int)yrot + 0) > 0) && (((int)xrot * capture->width + (int)yrot + 2) < (newheight * newwidth * 3))){
+        imageOut[(int)xrot*capture->width + (int)yrot + 0] = capture->image[x*3 + 0];
+        imageOut[(int)xrot*capture->width + (int)yrot + 1] = capture->image[x*3 + 1];
+        imageOut[(int)xrot*capture->width + (int)yrot + 2] = capture->image[x*3 + 2];
       }
     }
   }
   
-  memcpy(capture->image, imageOut, newheight * newwidth * capture->depth);
+  memcpy(capture->image, imageOut, newheight * (newwidth * 3));
   free(imageOut);
   
 #ifdef	DEBUG
   fprintf(stderr, "done.\n");
 #endif
+}
+
+/*
+ * Default is to use the luminosity method. We could also use the average or
+ * lightness methods here... they are listed below for reference.
+ *
+ * lightness
+ *  newRGB = (max(RGB) + min(RGB)) / 2
+ *
+ * average
+ *  newRGB = (R+G+B) / 2
+ */
+void filter_greyscale(Capture *capture) {
+  /*
+   * This is the formula The GIMP uses to convert to
+   * greyscale, so I'll use it here...
+   * newRGB = 0.21R + 0.71G + 0.07B
+   */
+  int i;
+  unsigned char *imageOut = NULL;
+  imageOut = malloc(capture->size);
+
+  for (i = 0; i < capture->size; i += 3) {
+    int l = (0.21 * capture->image[i + 0] + 0.71 * capture->image[i+1] + 0.07 * capture->image[i+2]);
+    imageOut[i + 0] = l;
+    imageOut[i + 1] = l;
+    imageOut[i + 2] = l;
+  }
+
+  memcpy(capture->image, imageOut, capture->size);
+  free(imageOut);
 }
 #endif	/* ENABLE_FILTERS */

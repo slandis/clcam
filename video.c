@@ -24,6 +24,7 @@
 #include "clcam.h"
 #include "save.h"
 #include "filters.h"
+#include "video.h"
 
 #define CLEAR(x) memset(&(x), 0, sizeof (x))
 #define CLIP(x) ((x) >= 0xFF ? 0xFF : ( (x) <= 0x00 ? 0x00 : (x)))
@@ -32,7 +33,7 @@ void YUV422toRGB888(Capture *capture) {
   int line, column;
   unsigned char *py, *pu, *pv;
   unsigned char *src = (unsigned char *)capture->memory;
-  unsigned char *tmp = capture->image;
+  int tmp = 0;
 
   /* In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb and a Cr. 
      Each Y goes to one of the pixels, and the Cb and Cr belong to both pixels. */
@@ -42,9 +43,9 @@ void YUV422toRGB888(Capture *capture) {
 
   for (line = 0; line < capture->height; ++line) {
     for (column = 0; column < capture->width; ++column) {
-      *tmp++ = CLIP((double)*py + 1.402*((double)*pv-128.0));
-      *tmp++ = CLIP((double)*py - 0.344*((double)*pu-128.0) - 0.714*((double)*pv-128.0));      
-      *tmp++ = CLIP((double)*py + 1.772*((double)*pu-128.0));
+      capture->image[tmp++] = CLIP((double)*py + 1.402*((double)*pv-128.0));
+      capture->image[tmp++] = CLIP((double)*py - 0.344*((double)*pu-128.0) - 0.714*((double)*pv-128.0));      
+      capture->image[tmp++] = CLIP((double)*py + 1.772*((double)*pu-128.0));
 
       py += 2;
 
@@ -70,9 +71,10 @@ int xioctl(int fd, int request, void *argp) {
   return r;
 }
 
-void imageProcess(Capture *capture) {
+void image_process(Capture *capture) {
   capture->size = capture->width * capture->height * 3 * sizeof(char);
   capture->image = malloc(capture->size);
+  memset(capture->image, 0, capture->size);
 
   YUV422toRGB888(capture);
 
@@ -104,7 +106,7 @@ void imageProcess(Capture *capture) {
   }
 }
 
-int frameRead(Capture *capture) {
+int frame_read(Capture *capture) {
   struct v4l2_buffer buffer;
   CLEAR(buffer);
 
@@ -124,12 +126,12 @@ int frameRead(Capture *capture) {
     }
   }
   
-  imageProcess(capture);
+  image_process(capture);
 
   return 1;
 }
 
-void captureStop(Capture *capture) {
+void capture_stop(Capture *capture) {
   enum v4l2_buf_type type;
 
   type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -138,7 +140,7 @@ void captureStop(Capture *capture) {
     errno_exit("VIDIOC_STREAMOFF");
 }
 
-void captureStart(Capture *capture) {
+void capture_start(Capture *capture) {
   struct v4l2_buffer buffer;
   enum v4l2_buf_type type;
 
@@ -157,14 +159,14 @@ void captureStart(Capture *capture) {
     errno_exit("VIDIOC_STREAMON");
 }
 
-void deviceUninit(Capture *capture) {
+void device_uninit(Capture *capture) {
   if (munmap(capture->memory, capture->length) < 0)
     errno_exit("munmap");
 
   free(capture->image);
 }
 
-void mmapInit(Capture *capture) {
+void mmap_init(Capture *capture) {
   struct v4l2_requestbuffers rbuffer;
   CLEAR (rbuffer);
 
@@ -203,11 +205,11 @@ void mmapInit(Capture *capture) {
     errno_exit("mmap");
 }
 
-void deviceInit(Capture *capture) {
+void device_init(Capture *capture) {
   struct v4l2_capability cap;
   struct v4l2_cropcap cropcap;
   struct v4l2_crop crop;
-  struct v4l2_format fmt;
+  struct v4l2_format format;
   unsigned int min;
 
   if (xioctl(capture->fd, VIDIOC_QUERYCAP, &cap) < 0) {
@@ -249,48 +251,39 @@ void deviceInit(Capture *capture) {
     }
   }
 
-  CLEAR (fmt);
+  CLEAR (format);
 
-  fmt.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  fmt.fmt.pix.width       = capture->width; 
-  fmt.fmt.pix.height      = capture->height;
-  fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-  fmt.fmt.pix.field       = V4L2_FIELD_INTERLACED;
+  format.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  format.fmt.pix.width       = capture->width; 
+  format.fmt.pix.height      = capture->height;
+  format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+  format.fmt.pix.field       = V4L2_FIELD_INTERLACED;
 
-  if (xioctl(capture->fd, VIDIOC_S_FMT, &fmt) < 0)
+  if (xioctl(capture->fd, VIDIOC_S_FMT, &format) < 0)
     errno_exit("VIDIOC_S_FMT");
 
-  /* Note VIDIOC_S_FMT may change width and height. */
-  if (capture->width != fmt.fmt.pix.width) {
-    capture->width = fmt.fmt.pix.width;
+  if (capture->width != format.fmt.pix.width) {
+    capture->width = format.fmt.pix.width;
     fprintf(stderr,"Image width set to %i by device %s.\n", capture->width, capture->device);
   }
-  if (capture->height != fmt.fmt.pix.height) {
-    capture->height = fmt.fmt.pix.height;
+  if (capture->height != format.fmt.pix.height) {
+    capture->height = format.fmt.pix.height;
     fprintf(stderr,"Image height set to %i by device %s.\n", capture->height, capture->device);
   }
 
   capture->size = capture->height * capture->width * 3;
 
-  /* Buggy driver paranoia. */
-  min = fmt.fmt.pix.width * 2;
-  if (fmt.fmt.pix.bytesperline < min)
-    fmt.fmt.pix.bytesperline = min;
-  min = fmt.fmt.pix.bytesperline * fmt.fmt.pix.height;
-  if (fmt.fmt.pix.sizeimage < min)
-    fmt.fmt.pix.sizeimage = min;
-
-  mmapInit(capture);
+  mmap_init(capture);
 }
 
-void deviceClose(Capture *capture) {
+void device_close(Capture *capture) {
   if (close(capture->fd) < 0)
     errno_exit("close");
 
   capture->fd = -1;
 }
 
-void deviceOpen(Capture *capture) {
+void device_open(Capture *capture) {
   struct stat st;
 
   if (stat(capture->device, &st) < 0) {
@@ -308,5 +301,108 @@ void deviceOpen(Capture *capture) {
   if (capture->fd < 0) {
     fprintf(stderr, "Cannot open '%s': %d, %s\n", capture->device, errno, strerror (errno));
     exit(EXIT_FAILURE);
+  }
+}
+
+void walk_controls(Capture *capture) {
+  int i;
+
+  for (i = 0; i < capture->c_index; i++) {
+    struct v4l2_queryctrl query;
+    query.id = c_chain[i].id;
+
+    if (xioctl(capture->fd, VIDIOC_QUERYCTRL, &query) == 0)
+#ifdef  DEBUG
+      fprintf(stderr, "Unable to query control\n")
+#endif
+      ;
+
+    if (query.flags & V4L2_CTRL_TYPE_INTEGER) {
+      c_chain[i].value = (c_chain[i].value <= query.maximum) ? ((c_chain[i].value >= query.minimum) ? c_chain[i].value : query.minimum) : query.maximum;
+    } else if (query.flags & V4L2_CTRL_TYPE_BOOLEAN) {
+      c_chain[i].value = (c_chain[i].value > 0) ? 1 : 0;
+    }
+
+    if (xioctl(capture->fd, VIDIOC_S_CTRL, &c_chain[i]) < 0)
+#ifdef  DEBUG
+      fprintf(stderr, "Unable to set value to control '%s'\n", query.name)
+#endif
+    ;
+    else
+#ifdef  DEBUG
+      fprintf(stderr, "Set control '%s' to value '%d'\n", query.name, c_chain[i].value)
+#endif
+      ;
+  }
+}
+
+void reset_controls(Capture *capture) {
+  struct v4l2_queryctrl queryctrl;
+  struct v4l2_control control;
+  memset(&queryctrl, 0, sizeof(queryctrl));
+
+  for (queryctrl.id = V4L2_CID_BASE; queryctrl.id < V4L2_CID_LASTP1; queryctrl.id++) {
+    if (xioctl(capture->fd, VIDIOC_QUERYCTRL, &queryctrl) == 0) {
+      if (queryctrl.flags & V4L2_CTRL_FLAG_DISABLED)
+        continue;
+
+      memset(&control, 0, sizeof(control));
+      control.id = queryctrl.id;
+
+      if (xioctl(capture->fd, VIDIOC_G_CTRL, &control) < 0) {
+#ifdef  DEBUG
+        fprintf(stderr, "Unable to get control values from '%s' (%s)\n", queryctrl.name, strerror(errno))
+#endif
+        ;
+      } else {
+        if (control.value != queryctrl.default_value) {
+          control.value = queryctrl.default_value;
+
+          if (xioctl(capture->fd, VIDIOC_S_CTRL, &control) < 0)
+#ifdef  DEBUG
+            fprintf(stderr, "Unable to reset default value on control '%s' (%s)\n", queryctrl.name, strerror(errno))
+#endif
+            ;
+        }
+      }
+    }
+  }
+}
+
+void enum_menu(Capture *capture, struct v4l2_queryctrl *queryctrl) {
+  struct v4l2_querymenu querymenu;
+  memset(&querymenu, 0, sizeof (querymenu));
+  querymenu.id = queryctrl->id;
+
+  for (querymenu.index = queryctrl->minimum; querymenu.index <= queryctrl->maximum; querymenu.index++) {
+    if (0 == xioctl(capture->fd, VIDIOC_QUERYMENU, &querymenu)) {
+      fprintf(stdout, "    [%d] %s\n", querymenu.index, querymenu.name);
+    } else {
+      perror("VIDIOC_QUERYMENU");
+      exit(EXIT_FAILURE);
+    }
+  }
+}
+
+void enum_controls(Capture *capture) {
+  struct v4l2_queryctrl queryctrl;
+  memset(&queryctrl, 0, sizeof (queryctrl));
+
+  for (queryctrl.id = V4L2_CID_BASE; queryctrl.id < V4L2_CID_LASTP1; queryctrl.id++) {
+    if (0 == xioctl(capture->fd, VIDIOC_QUERYCTRL, &queryctrl)) {
+      if (queryctrl.flags & V4L2_CTRL_FLAG_DISABLED)
+        continue;
+
+      fprintf(stdout, "[%d] %-29s [%d,%d]\n", queryctrl.id, get_option_name(queryctrl.id), queryctrl.minimum, queryctrl.maximum);
+
+      if (queryctrl.type == V4L2_CTRL_TYPE_MENU)
+        enum_menu(capture, &queryctrl);
+    } else {
+      if (errno == EINVAL)
+        continue;
+
+    perror("VIDIOC_QUERYCTRL");
+    exit(EXIT_FAILURE);
+    }
   }
 }

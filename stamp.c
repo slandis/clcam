@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <linux/videodev2.h>
 
 #include "clcam.h"	/* For Capture structure */
 #include "stamp.h"
